@@ -96,13 +96,9 @@ private:
   // Parameter
   double intersection_pose_x_;          // 交差点座標
   double intersection_pose_y_;
-  double crosswalk_pose_x_;             // 横断歩道座標
-  double crosswalk_pose_y_;
   double distance_to_intersection_;
-  double distance_to_crosswalk_;
   uint16_t vehicle_width_;              // 車両幅208cm
   uint16_t vehicle_length_;             // 車両長699cm
-  double vehicle_restart_velocity_;     // 車両再発進の車速閾値
 
   // UDP Communication
   std::unique_ptr<IoContext> ctx_{std::make_unique<IoContext>(1)};
@@ -112,12 +108,6 @@ private:
   uint8_t udp_send_cnt_ = 0;
   void udp_publish(uint8_t individual_data);
   void Initialize(TD001 & output);
-
-  // State
-  bool is_stop_before_crosswalk_;
-  bool is_vehicle_stopped_;
-  bool is_vehicle_moving_;
-  bool is_vehicle_trun_right_;
 
   // Subscriber
   rclcpp::Subscription<Odometry>::SharedPtr current_pose_sub_;
@@ -138,7 +128,7 @@ private:
 
   // Function
   void initState();
-  void stateJudgement();
+  void main();
   double calcEculideanDistance(double x1, double y1, double x2, double y2);
 
 public:

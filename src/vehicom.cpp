@@ -10,11 +10,8 @@ VEHICOM::VEHICOM(const rclcpp::NodeOptions & node_options)
   // Parameters
   intersection_pose_x_ = static_cast<int>(declare_parameter("intersection_pose_x", 0.0));
   intersection_pose_y_ = static_cast<int>(declare_parameter("intersection_pose_y", 0.0));
-  crosswalk_pose_x_ = static_cast<int>(declare_parameter("crosswalk_pose_x", 0.0));
-  crosswalk_pose_y_ = static_cast<int>(declare_parameter("crosswalk_pose_y", 0.0));
   vehicle_width_ = (uint16_t)(declare_parameter<double>("vehicle_width"));
   vehicle_length_ = (uint16_t)(declare_parameter<double>("vehicle_length"));
-  vehicle_restart_velocity_ = static_cast<double>(declare_parameter("vehicle_restart_velocity_", 1.3));
 
   // State
   initState();
@@ -89,62 +86,24 @@ void VEHICOM::udp_publish(uint8_t individual_data)
 void VEHICOM::onCurrentPose(const Odometry::ConstSharedPtr msg)
 {
   distance_to_intersection_ = calcEculideanDistance(msg->pose.pose.position.x, msg->pose.pose.position.y, intersection_pose_x_, intersection_pose_y_);
-  distance_to_crosswalk_ = calcEculideanDistance(msg->pose.pose.position.x, msg->pose.pose.position.y, crosswalk_pose_x_, crosswalk_pose_y_);
   // RCLCPP_INFO(this->get_logger(), "The distance to target is: %f", distance_to_intersection_);
-  // RCLCPP_INFO(this->get_logger(), "The distance to target is: %f", distance_to_crosswalk_);
 }
 
 void VEHICOM::onCrosswalkVelocityFactor(const VelocityFactorArray::ConstSharedPtr msg)
 {
-  if(msg->factors.empty() || std::isinf(msg->factors[0].distance) ||std::isnan(msg->factors[0].distance))
-  {
-    is_stop_before_crosswalk_ = false;
-    return;
-  }
-  else
-  {
-    is_stop_before_crosswalk_ = true;
-  }
 }
 
 void VEHICOM::onVehicleVelocityReport(const VelocityReport::ConstSharedPtr msg)
 {
-  // Treat the vehicle as stopped
-  if(msg->longitudinal_velocity < 0.1)
-  {
-    is_vehicle_stopped_ = true;
-  }
-  else
-  {
-    is_vehicle_stopped_ = false;
-  }
-
-  // Treat the vehicle as moving
-  if(msg->longitudinal_velocity > vehicle_restart_velocity_)
-  {
-    is_vehicle_moving_ = true;
-  }
-  else
-  {
-    is_vehicle_moving_ = false;
-  }
 }
 
 void VEHICOM::onVehicleTurnIndicatorsReport(const TurnIndicatorsReport::ConstSharedPtr msg)
 {
-  if(msg->report == 3)
-  {
-    is_vehicle_trun_right_ = true;
-  }
-  else
-  {
-    is_vehicle_trun_right_ = false;
-  }
 }
 
 void VEHICOM::onTimer()
 {
-  stateJudgement();
+  main();
 }
 
 void VEHICOM::Initialize(TD001 & output)
@@ -221,10 +180,6 @@ void VEHICOM::Initialize(TD001 & output)
 
 void VEHICOM::initState()
 {
-  is_stop_before_crosswalk_ = false;
-  is_vehicle_moving_ = false;
-  is_vehicle_stopped_ = false;
-  is_vehicle_trun_right_ = false;
 }
 
 double VEHICOM::calcEculideanDistance(double x1, double y1, double x2, double y2)
@@ -234,86 +189,9 @@ double VEHICOM::calcEculideanDistance(double x1, double y1, double x2, double y2
   return sqrt(dist);
 }
 
-void VEHICOM::stateJudgement()
+void VEHICOM::main()
 {
-  // Static Parameters
-  static int runPhaseZeroTimes = 0;
-  static int runPhaseOneTimes = 0;
-  static int runPhaseThreeTimes = 0;
-  static bool hasEnterIntersection = false;
-  static bool hasStopCrosswalk = false;
-  static bool hasOverCrosswalk = false;
-
-  if(distance_to_intersection_ < 20.0 && is_vehicle_trun_right_) // 送信処理開始
-  {
-    // Phase 0
-    if(distance_to_intersection_ < 10.0 && runPhaseZeroTimes == 0)
-    {
-      udp_publish(0x00);
-      RCLCPP_INFO(this->get_logger(), "右折交差点に接近する。");
-      runPhaseZeroTimes++;
-    }
-
-    if(distance_to_intersection_ < 2.0)
-    {
-      hasEnterIntersection = true;
-    }
-
-    // Phase 1
-    if(hasEnterIntersection && runPhaseZeroTimes != 0 &&!hasStopCrosswalk && !hasOverCrosswalk) // 信号停止線を5m超えたら、処理開始
-    {
-      // 0x01を送信する前に,0x02を送信することを判断できた際に、0x01を一秒間送信継続
-      if (is_stop_before_crosswalk_ && runPhaseOneTimes < 2 && !is_vehicle_stopped_)
-      {
-        udp_publish(0x01);
-        RCLCPP_INFO(this->get_logger(), "右折交差点に侵入する。");
-        runPhaseOneTimes++;
-      }
-      else if(is_stop_before_crosswalk_ && is_vehicle_stopped_) //Interstionにより停車した場合はデータ送信をし続ける
-      {
-        udp_publish(0x01);
-        RCLCPP_INFO(this->get_logger(), "右折交差点に侵入する。");
-        runPhaseOneTimes = 0;
-      }
-      // 横断歩道の前に停止判定しない場合
-      else if (!is_stop_before_crosswalk_)
-      {
-        udp_publish(0x01);
-        RCLCPP_INFO(this->get_logger(), "右折交差点に侵入する。");
-        runPhaseOneTimes = 0;
-      }
-
-      if (distance_to_intersection_ > 21.0 && distance_to_crosswalk_ < 3.0)
-      {
-        hasOverCrosswalk = true;
-      }
-    }
-
-    // Phase 2
-    if(is_stop_before_crosswalk_ && is_vehicle_stopped_ && distance_to_crosswalk_ < 12.0) //歩行者がいる場合
-    {
-      udp_publish(0x02);
-      hasStopCrosswalk = true;
-      RCLCPP_INFO(this->get_logger(), "横断歩道の前で一時停止した。");
-    }
-
-    // Phase 3
-    if(is_vehicle_moving_ && runPhaseThreeTimes < 1 && hasStopCrosswalk)
-    {
-      udp_publish(0x03);
-      RCLCPP_INFO(this->get_logger(), "横断歩道から再発進する。");
-      runPhaseThreeTimes ++;
-    }
-  }
-  else // Reset static parameter
-  {
-    runPhaseZeroTimes = 0;
-    runPhaseOneTimes = 0;
-    runPhaseThreeTimes = 0;
-    hasEnterIntersection = false;
-    hasStopCrosswalk = false;
-    hasOverCrosswalk = false;
-  }
+  udp_publish(0x00);
 }
 
 } // namespace vehicom
