@@ -1,0 +1,28 @@
+<launch>
+  <arg name="intersection_pose_x" default="65876.0"/>
+  <arg name="intersection_pose_y" default="40505.0"/>
+  <arg name="crosswalk_pose_x" default="65895.0"/>
+  <arg name="crosswalk_pose_y" default="40519.0"/>
+  <arg name="vehicle_width" default="208.0"/>
+  <arg name="vehicle_length" default="699.0"/>
+  <arg name="vehicle_restart_velocity" default="0.8"/>
+  <arg name="ip_send" default="192.168.1.161"/>
+  <arg name="port_send" default="1120"/>
+
+  <node pkg="vehicom" exec="vehicom" name="vehicom" output="screen">
+    <remap from="~/input/current_pose" to="/localization/kinematic_state"/>
+    <remap from="~/input/intersection_cooperate_status" to="/planning/cooperate_status/intersection"/>
+    <remap from="~/input/trafficlight_cooperate_status" to="/planning/cooperate_status/traffic_light"/>
+    <remap from="~/input/crosswalk_velocity_factor" to="/planning/velocity_factors/crosswalk"/>
+    <remap from="~/input/vehicle_velocity" to="/vehicle/status/velocity_status"/>
+    <remap from="~/input/vehicle_turn_indicators" to="/vehicle/status/turn_indicators_status"/>
+    <param name="intersection_pose_x" value="$(var intersection_pose_x)"/>
+    <param name="intersection_pose_y" value="$(var intersection_pose_y)"/>
+    <param name="crosswalk_pose_x" value="$(var crosswalk_pose_x)"/>
+    <param name="crosswalk_pose_y" value="$(var crosswalk_pose_y)"/>
+    <param name="vehicle_width" value="$(var vehicle_width)"/>
+    <param name="vehicle_length" value="$(var vehicle_length)"/>
+    <param name="ip_send" value="$(var ip_send)"/>
+    <param name="port_send" value="$(var port_send)"/>
+  </node>
+</launch>

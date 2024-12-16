@@ -1,0 +1,20 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "colcon build",
+			"command": "colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release",
+			"problemMatcher": [],
+			"detail": "CMake template configure task",
+			"group": {
+				"kind": "build",
+				"isDefault": true,
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+			}
+		}
+	]
+}
