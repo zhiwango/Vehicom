@@ -6,8 +6,8 @@
   <arg name="vehicle_width" default="208.0"/>
   <arg name="vehicle_length" default="699.0"/>
   <arg name="vehicle_restart_velocity" default="0.8"/>
-  <arg name="ip_send" default="192.168.1.161"/>
-  <arg name="port_send" default="1120"/>
+  <arg name="ip_send" default="127.0.0.1"/>
+  <arg name="port_send" default="10086"/>
 
   <node pkg="vehicom" exec="vehicom" name="vehicom" output="screen">
     <remap from="~/input/current_pose" to="/localization/kinematic_state"/>

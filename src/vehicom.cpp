@@ -14,17 +14,8 @@ VEHICOM::VEHICOM(const rclcpp::NodeOptions & node_options)
   vehicle_length_ = (uint16_t)(declare_parameter<double>("vehicle_length"));
 
   // State
-  initState();
 
   // Subscrier
-  current_pose_sub_ = this->create_subscription<Odometry>(
-    "~/input/current_pose", 1, std::bind(&VEHICOM::onCurrentPose, this, _1));
-  crosswalk_velocity_factor_sub_ = this->create_subscription<VelocityFactorArray>(
-    "~/input/crosswalk_velocity_factor", 1, std::bind(&VEHICOM::onCrosswalkVelocityFactor, this, _1));
-  vehicle_velocity_report_sub_ = this->create_subscription<VelocityReport>(
-    "~/input/vehicle_velocity", 1, std::bind(&VEHICOM::onVehicleVelocityReport, this, _1));
-  vehicle_turn_indicators_report_sub_ = this->create_subscription<TurnIndicatorsReport>(
-    "~/input/vehicle_turn_indicators", 1, std::bind(&VEHICOM::onVehicleTurnIndicatorsReport, this, _1));
 
   // Publisher
   try {
@@ -55,7 +46,7 @@ void VEHICOM::udp_publish(uint8_t individual_data)
   tm = std::localtime(&time);
 
   // 時刻格納
-  this->out_com_.tTime = (uint8_t)(0x7F & tm->tm_hour);
+  this->out_com_.tHour = (uint8_t)(0x7F & tm->tm_hour);
   this->out_com_.tMin = tm->tm_min;
   uint16_t make_v = static_cast<uint16_t>((tm->tm_sec + ts.tv_nsec / 1000000000.0) * 1000.0);
   make_v = htons(make_v);
@@ -67,7 +58,7 @@ void VEHICOM::udp_publish(uint8_t individual_data)
   this->out_com_.increCount = udp_send_cnt_;
 
   // 個別アプリデータ
-  this->out_com_.indivAppData = individual_data;
+  this->out_com_.indivInfos[0].indivAppData = individual_data;
 
   // udp出力データ作成
   std::vector<uint8_t> send_udp_data;
@@ -81,24 +72,6 @@ void VEHICOM::udp_publish(uint8_t individual_data)
 
   // 初期化処理
   Initialize(this->out_com_);
-}
-
-void VEHICOM::onCurrentPose(const Odometry::ConstSharedPtr msg)
-{
-  distance_to_intersection_ = calcEculideanDistance(msg->pose.pose.position.x, msg->pose.pose.position.y, intersection_pose_x_, intersection_pose_y_);
-  // RCLCPP_INFO(this->get_logger(), "The distance to target is: %f", distance_to_intersection_);
-}
-
-void VEHICOM::onCrosswalkVelocityFactor(const VelocityFactorArray::ConstSharedPtr msg)
-{
-}
-
-void VEHICOM::onVehicleVelocityReport(const VelocityReport::ConstSharedPtr msg)
-{
-}
-
-void VEHICOM::onVehicleTurnIndicatorsReport(const TurnIndicatorsReport::ConstSharedPtr msg)
-{
 }
 
 void VEHICOM::onTimer()
@@ -121,11 +94,11 @@ void VEHICOM::Initialize(TD001 & output)
   output.optFlg = 0x00;                               // DE_オプションフラグ - 8bit
 
   // DF_時刻情報 - 4byte
-  output.tTime = 0x00;                                // DE_うるう秒補正情報 - 1bit
-  output.tTime |= 0x7F;                               // DE_時刻（時） - 7bit
-  output.tMin = 0xFF;                                 // DE_時刻（分）- 8bit
-  output.tSec[0] = 0xFF;                              // DE_時刻（秒）- 16bit
-  output.tSec[1] = 0xFF;
+  output.tLeap = 0x00;                                // DE_うるう秒補正情報 - 1bit
+  output.tHour = 0x00;                               // DE_時刻（時） - 7bit
+  output.tMin = 0x00;                                 // DE_時刻（分）- 8bit
+  output.tSec[0] = 0x00;                              // DE_時刻（秒）- 16bit
+  output.tSec[1] = 0x00;
 
   // DF_位置情報                  11byte
   output.Latitude[0] = 0x11;    // DE_緯度 - 32bit
@@ -148,39 +121,31 @@ void VEHICOM::Initialize(TD001 & output)
   output.head[1] = 0xFF;
   output.accel[0] = 0xFF;       // DE_前後加速度 - 16bit
   output.accel[1] = 0xFF;
-  output.vehicleConf[0] = (0x00 << 5);   // DE_車速取得情報       : 3
-  output.vehicleConf[0] |= (0x00 << 2);  // DE_車両方位角取得情報  : 3
-  output.vehicleConf[0] |= (0x00 >> 1);  // DE_前後加速度取得情報  : 3
-  output.vehicleConf[1] = 0x00;
-  output.vehicleConf[1] |= (0x00 << 4);  // DE_シフトポジション    : 3
-  output.vehicleConf[1] |= (0x00 << 0);  // DE_ステアリング角度    : 12
-  output.vehicleConf[2] = 0x00;
+  output.speedConf = 0x07;      // DE_車速取得情報       : 3
+  output.headConf = 0x07;       // DE_車両方位角取得情報  : 3
+  output.accelConf = 0x07;      // DE_前後加速度取得情報  : 3
+  output.transStat = 0x07;      // DE_シフトポジション    : 3
+  output.steerAngle = 0xFF;     // DE_ステアリング角度    : 12
 
   // DF_車両属性情報                      4byte
   output.vSizeClass = 0x0E;             // DE_車両サイズ種別 - 4bit
   output.vRoleClass = 0x0F;             // DE_車両用途種別 - 4bit
-  // 0x34, 0x02, 0xbb
-  output.vehicleSize[0] = uint8_t((vehicle_width_ & 0x03FC) >> 2);    // DE_車幅 - 10bit
-  output.vehicleSize[1] = uint8_t((vehicle_width_ & 0x0003) << 6);
-  output.vehicleSize[1] |= uint8_t((vehicle_length_ & 0x3F00) >> 8);  // DE_車長 - 14bit
-  output.vehicleSize[2] = uint8_t(vehicle_length_ & 0x00FF);
+  output.vWid = vehicle_width_;         // DE_車幅 - 10bit
+  output.vLen = vehicle_length_;        // DE_車幅 - 10bit
 
    // DF_自由領域管理情報                      1byte
-  output.indivindivAppHeaderLen = 0x04;     // DE_自由アプリヘッダ長 - 5bit
-  output.numIndivAppData = 0x01;            // DE_個別アプリデータ数 - 3bit
+  output.indivindivAppHeaderLen = 0x00;     // DE_自由アプリヘッダ長 - 5bit
+  output.numIndivAppData = 0x00;            // DE_個別アプリデータ数 - 3bit
 
   // DF_個別アプリデータ管理情報セット           3byte
-  output.indivServStdID = 0x01;             // DE_個別サービス規格 - 8bit
-  output.indivAppDataAddress = 0x00;        // DE_個別アプリデータ先頭アドレス - 8bit
-  output.indivAppDataLen = 0x01;            // DE_個別アプリデータ長 - 8bit
+  output.indivInfos[0].indivServStdID = 0x00;             // DE_個別サービス規格 - 8bit
+  output.indivInfos[0].indivAppDataAddress = 0x00;        // DE_個別アプリデータ先頭アドレス - 8bit
+  output.indivInfos[0].indivAppDataLen = 0x00;            // DE_個別アプリデータ長 - 8bit
 
   // 個別アプリデータ                          1byte
   // output.indivAppData = 0xFF;            // 交差点接近0, 右折1, 右折2, 右折3
 }
 
-void VEHICOM::initState()
-{
-}
 
 double VEHICOM::calcEculideanDistance(double x1, double y1, double x2, double y2)
 {

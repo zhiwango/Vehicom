@@ -38,7 +38,7 @@ private:
     uint8_t Ver : 3;              // DE_バージョン情報 - 3bit
     uint8_t vID[4];               // DE_車両ID - 32bit
     uint8_t increCount;           // DE_インクリメントカウンタ - 8bit
-    uint8_t comAppDataLenCommon;  // DE_共通アプリデータ長 - 8bit
+    uint8_t comAppDataLen;  // DE_共通アプリデータ長 - 8bit
     uint8_t optFlg;               // DE_オプションフラグ - 8bit
 
     // DF_時刻情報               4byte
@@ -62,13 +62,13 @@ private:
     uint8_t headConf   : 3;       // DE_車両方位角取得情報
     uint8_t accelConf  : 3;       // DE_前後加速度取得情報
     uint8_t transStat  : 3;       // DE_シフトポジション
-    uint8_t steerAngle :12;       // DE_ステアリング角度
+    uint16_t steerAngle :12;       // DE_ステアリング角度
 
     // DF_車両属性情報            4byte
     uint8_t vRoleClass : 4;     // DE_車両用途種別
     uint8_t vSizeClass : 4;     // DE_車両サイズ種別
-    uint8_t vWid       : 10;    // DE_車幅
-    uint8_t vLen       : 12;    // DE_車長
+    uint16_t vWid       : 10;    // DE_車幅
+    uint16_t vLen       : 12;    // DE_車長
 
     // DF_位置オプション情報
     // DF_GNSS状態オプション情報
@@ -110,26 +110,16 @@ private:
   void Initialize(TD001 & output);
 
   // Subscriber
-  rclcpp::Subscription<Odometry>::SharedPtr current_pose_sub_;
-  rclcpp::Subscription<CooperateStatusArray>::SharedPtr intersection_cooperate_status_sub_;
-  rclcpp::Subscription<VelocityFactorArray>::SharedPtr crosswalk_velocity_factor_sub_;
-  rclcpp::Subscription<VelocityReport>::SharedPtr vehicle_velocity_report_sub_;
-  rclcpp::Subscription<TurnIndicatorsReport>::SharedPtr vehicle_turn_indicators_report_sub_;
 
   // Timer
   rclcpp::TimerBase::SharedPtr timer_;
   void onTimer();
 
   // Callback
-  void onCurrentPose(const Odometry::ConstSharedPtr msg);
-  void onCrosswalkVelocityFactor(const VelocityFactorArray::ConstSharedPtr msg);
-  void onVehicleVelocityReport(const VelocityReport::ConstSharedPtr msg);
-  void onVehicleTurnIndicatorsReport(const TurnIndicatorsReport::ConstSharedPtr msg);
 
   // Function
-  void initState();
-  void main();
   double calcEculideanDistance(double x1, double y1, double x2, double y2);
+  void main();
 
 public:
   explicit VEHICOM(const rclcpp::NodeOptions & node_options);

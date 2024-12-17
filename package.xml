@@ -15,7 +15,7 @@
   <depend>rclcpp_components</depend>
 
   <depend>autoware_adapi_v1_msgs</depend>
-  <depend>autoware_auto_vehicle_msgs</depend>
+  <depend>autoware_vehicle_msgs</depend>
   <depend>tier4_rtc_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>udp_driver</depend>
