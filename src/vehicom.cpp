@@ -31,6 +31,9 @@ VEHICOM::VEHICOM(const rclcpp::NodeOptions & node_options)
   // Timer
   const auto update_period_ns = rclcpp::Rate(2.0).period();
   timer_ = rclcpp::create_timer(this, get_clock(), update_period_ns, std::bind(&VEHICOM::onTimer, this));
+
+  // 初期化処理
+  Initialize(this->out_com_);
 }
 
 void VEHICOM::udp_publish(uint8_t individual_data)
@@ -69,9 +72,6 @@ void VEHICOM::udp_publish(uint8_t individual_data)
 
   // udp送信
   udp_sender_->sender()->send(const_cast<std::vector<uint8_t> &>(send_udp_data));
-
-  // 初期化処理
-  Initialize(this->out_com_);
 }
 
 void VEHICOM::onTimer()
@@ -85,10 +85,10 @@ void VEHICOM::Initialize(TD001 & output)
   output.comServStdID = 0x01;                         // DE_共通サービス規格ID - 3bit
   output.msgID = 0x01;                                // DE_メッセージID - 2bit
   output.Ver = 0x01;                                  // DE_バージョン情報 - 3bit
-  output.vID[0] = uint8_t((0x0 & 0xFF000000) >> 24);  // DE_車両ID - 32bit
-  output.vID[1] = uint8_t((0x0 & 0x00FF0000) >> 16);
-  output.vID[2] = uint8_t((0x0 & 0x0000FF00) >> 8);
-  output.vID[3] = uint8_t((0x0 & 0x000000FF) >> 0);
+  output.vID[0] = uint8_t((0x12345678 & 0xFF000000) >> 24);  // DE_車両ID - 32bit
+  output.vID[1] = uint8_t((0x12345678 & 0x00FF0000) >> 16);
+  output.vID[2] = uint8_t((0x12345678 & 0x0000FF00) >> 8);
+  output.vID[3] = uint8_t((0x12345678 & 0x000000FF) >> 0);
   output.increCount = 0x00;                           // DE_インクリメントカウンタ - 8bit
   output.comAppDataLen = 0x1c;                        // DE_共通アプリデータ長 - 8 bit
   output.optFlg = 0x00;                               // DE_オプションフラグ - 8bit
