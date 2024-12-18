@@ -49,12 +49,14 @@ void VEHICOM::udp_publish(uint8_t individual_data)
   tm = std::localtime(&time);
 
   // 時刻格納
-  this->out_com_.tHour = (uint8_t)(0x7F & tm->tm_hour);
+  this->out_com_.tLeap = 0; // bool value
+  this->out_com_.tHour = (uint8_t)((0x7F & tm->tm_hour) >> 1);
   this->out_com_.tMin = tm->tm_min;
   uint16_t make_v = static_cast<uint16_t>((tm->tm_sec + ts.tv_nsec / 1000000000.0) * 1000.0);
   make_v = htons(make_v);
+  this->out_com_.tSec[0] = uint8_t(make_v & 0x00FF);
   this->out_com_.tSec[1] = uint8_t((make_v & 0xFF00) >> 8);
-  this->out_com_.tSec[0] = uint8_t((make_v & 0x00FF) >> 0);
+
 
   // インクリメントカウンタ
   udp_send_cnt_ = (udp_send_cnt_ + 1) % 255;
