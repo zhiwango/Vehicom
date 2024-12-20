@@ -119,7 +119,8 @@ private:
 
   // Function
   double calcEculideanDistance(double x1, double y1, double x2, double y2);
-  void main();
+  void commonInfoSetup();
+  void timeInfoSetup();
 
 public:
   explicit VEHICOM(const rclcpp::NodeOptions & node_options);

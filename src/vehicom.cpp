@@ -38,33 +38,6 @@ VEHICOM::VEHICOM(const rclcpp::NodeOptions & node_options)
 
 void VEHICOM::udp_publish(uint8_t individual_data)
 {
-  // 現在時刻取得
-  std::tm * tm = nullptr;
-  std::timespec ts;
-  if (std::timespec_get(&ts, TIME_UTC) == 0) {
-    RCLCPP_ERROR_STREAM(get_logger(), "Failed to get time now");
-    return;
-  }
-  time_t time = ts.tv_sec;
-  tm = std::localtime(&time);
-
-  // 時刻格納
-  this->out_com_.tLeap = 0; // bool value
-  this->out_com_.tHour = (uint8_t)((0x7F & tm->tm_hour) >> 1);
-  this->out_com_.tMin = tm->tm_min;
-  uint16_t make_v = static_cast<uint16_t>((tm->tm_sec + ts.tv_nsec / 1000000000.0) * 1000.0);
-  make_v = htons(make_v);
-  this->out_com_.tSec[0] = uint8_t(make_v & 0x00FF);
-  this->out_com_.tSec[1] = uint8_t((make_v & 0xFF00) >> 8);
-
-
-  // インクリメントカウンタ
-  udp_send_cnt_ = (udp_send_cnt_ + 1) % 255;
-  this->out_com_.increCount = udp_send_cnt_;
-
-  // 個別アプリデータ
-  this->out_com_.indivInfos[0].indivAppData = individual_data;
-
   // udp出力データ作成
   std::vector<uint8_t> send_udp_data;
   uint8_t * data = reinterpret_cast<uint8_t *>(&this->out_com_);
@@ -72,13 +45,18 @@ void VEHICOM::udp_publish(uint8_t individual_data)
     send_udp_data.push_back(data[i]);
   }
 
+  commonInfoSetup();
+  timeInfoSetup();
+  // 個別アプリデータ
+  this->out_com_.indivInfos[0].indivAppData = individual_data;
+
   // udp送信
   udp_sender_->sender()->send(const_cast<std::vector<uint8_t> &>(send_udp_data));
 }
 
 void VEHICOM::onTimer()
 {
-  main();
+  udp_publish(0x00);
 }
 
 void VEHICOM::Initialize(TD001 & output)
@@ -154,11 +132,6 @@ double VEHICOM::calcEculideanDistance(double x1, double y1, double x2, double y2
   double dist;
   dist = pow(x1 - x2, 2) + pow(y1 - y2, 2);
   return sqrt(dist);
-}
-
-void VEHICOM::main()
-{
-  udp_publish(0x00);
 }
 
 } // namespace vehicom
